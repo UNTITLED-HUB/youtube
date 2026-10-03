@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>상업적 이용 가능 사운드 검색</title>
+<style>
+:root{--bg:#0f1115;--card:#181b22;--line:#2a2f3a;--tx:#e8eaf0;--mut:#9aa3b2;--ac:#6ea8ff;--ok:#5fd3a0}
+@media (prefers-color-scheme:light){:root{--bg:#f6f7fb;--card:#fff;--line:#dfe3ec;--tx:#1b2030;--mut:#5d667a;--ac:#2b6cf0;--ok:#138a5e}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Noto Sans KR",sans-serif}
+.wrap{max-width:860px;margin:0 auto;padding:28px 16px 60px}
+h1{font-size:22px;margin:0 0 4px}
+.sub{color:var(--mut);margin:0 0 20px}
+form{display:flex;gap:8px;flex-wrap:wrap}
+input,select,button{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+input{flex:1;min-width:200px}
+button{cursor:pointer}
+button.p{background:var(--ac);border-color:var(--ac);color:#fff}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0 4px}
+.chips button{padding:5px 11px;font-size:13px;border-radius:99px;color:var(--mut)}
+.note{font-size:13px;color:var(--mut);margin:10px 0 18px}
+.item{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px}
+.top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.t{font-weight:600}
+.m{color:var(--mut);font-size:13px}
+.lic{display:inline-block;font-size:12px;border:1px solid var(--ok);color:var(--ok);border-radius:6px;padding:1px 7px;margin-right:6px}
+audio{width:100%;margin:10px 0 8px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row button,.row a{font-size:13px;padding:6px 10px;border-radius:8px}
+a.b{border:1px solid var(--line);color:var(--tx);text-decoration:none;background:var(--card)}
+.st{text-align:center;color:var(--mut);padding:30px 0}
+footer{margin-top:30px;font-size:12px;color:var(--mut)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>상업적 이용 가능 사운드 검색</h1>
+  <p class="sub">상업적 이용이 허용된 라이선스(CC0, CC BY, CC BY-SA)의 배경음악·효과음만 검색하고 내려받습니다.</p>
+
+  <form id="f">
+    <input id="q" placeholder="예: Monkey Spinning Monkeys, 빗소리, whoosh, lofi" autofocus>
+    <select id="cat">
+      <option value="">전체</option>
+      <option value="music">음악</option>
+      <option value="sound_effect">효과음</option>
+    </select>
+    <button class="p" type="submit">검색</button>
+  </form>
+
+  <div class="chips" id="chips"></div>
+  <p class="note">CC BY 계열은 <b>출처 표기가 필수</b>입니다. 각 결과의 '출처 표기 복사' 버튼을 이용하세요. 곡마다 라이선스가 다르니 사용 전에 링크에서 조건을 확인하세요.</p>
+
+  <div id="out"><div class="st">검색어를 입력하세요.</div></div>
+
+  <footer>
+    데이터: <a href="https://openverse.org" target="_blank" rel="noopener">Openverse</a> API · 찾는 곡이 없으면
+    <a href="https://incompetech.com/music/royalty-free/music.html" target="_blank" rel="noopener">Kevin MacLeod(incompetech)</a>,
+    YouTube Studio의 오디오 라이브러리, Pixabay에서도 찾아보세요.
+  </footer>
+</div>
+
+<script>
+const API = "https://api.openverse.org/v1/audio/";
+const $ = s => document.querySelector(s);
+const out = $("#out");
+
+["Kevin MacLeod", "Monkey Spinning Monkeys", "lofi", "cinematic", "whoosh", "rain", "button click"].forEach(k => {
+  const b = document.createElement("button");
+  b.type = "button"; b.textContent = k;
+  b.onclick = () => { $("#q").value = k; search(); };
+  $("#chips").appendChild(b);
+});
+
+$("#f").addEventListener("submit", e => { e.preventDefault(); search(); });
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = ms => { if (!ms) return ""; const s = Math.round(ms/1000); return Math.floor(s/60) + ":" + String(s%60).padStart(2,"0"); };
+
+async function search() {
+  const q = $("#q").value.trim();
+  if (!q) return;
+  out.innerHTML = '<div class="st">검색 중…</div>';
+  const p = new URLSearchParams({ q, license_type: "commercial", page_size: "20" });
+  if ($("#cat").value) p.set("category", $("#cat").value);
+  try {
+    const r = await fetch(API + "?" + p);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const d = await r.json();
+    render(d.results || []);
+  } catch (e) {
+    out.innerHTML = '<div class="st">검색에 실패했습니다 (' + esc(e.message) + '). 잠시 후 다시 시도하세요.</div>';
+  }
+}
+
+function render(list) {
+  if (!list.length) { out.innerHTML = '<div class="st">결과가 없습니다. 다른 검색어를 써보세요.</div>'; return; }
+  out.innerHTML = "";
+  list.forEach(a => {
+    const lic = (a.license || "").toUpperCase() + (a.license_version ? " " + a.license_version : "");
+    const el = document.createElement("div");
+    el.className = "item";
+    el.innerHTML = `
+      <div class="top">
+        <div><div class="t">${esc(a.title || "제목 없음")}</div>
+        <div class="m">${esc(a.creator || "작자 미상")} · ${esc(a.source || "")} ${a.duration ? "· " + fmt(a.duration) : ""}</div></div>
+        <div><span class="lic">${esc(lic)}</span></div>
+      </div>
+      <audio controls preload="none" src="${esc(a.url)}"></audio>
+      <div class="row">
+        <button class="dl">다운로드</button>
+        <button class="cp">출처 표기 복사</button>
+        <a class="b" href="${esc(a.foreign_landing_url || a.url)}" target="_blank" rel="noopener">원본 페이지</a>
+        ${a.license_url ? `<a class="b" href="${esc(a.license_url)}" target="_blank" rel="noopener">라이선스</a>` : ""}
+      </div>`;
+    el.querySelector(".dl").onclick = ev => download(a, ev.target);
+    el.querySelector(".cp").onclick = ev => copyCredit(a, lic, ev.target);
+    out.appendChild(el);
+  });
+}
+
+async function download(a, btn) {
+  const ext = (a.filetype || (a.url.split("?")[0].split(".").pop() || "mp3")).toLowerCase().slice(0, 4);
+  const name = (a.title || "sound").replace(/[\\/:*?"<>|]+/g, "_").slice(0, 80) + "." + ext;
+  const old = btn.textContent; btn.textContent = "받는 중…";
+  try {
+    const r = await fetch(a.url);
+    if (!r.ok) throw new Error();
+    const u = URL.createObjectURL(await r.blob());
+    const l = document.createElement("a"); l.href = u; l.download = name; l.click();
+    setTimeout(() => URL.revokeObjectURL(u), 5000);
+  } catch {
+    // 원본 서버가 직접 다운로드를 막으면 새 탭으로 열어 저장하게 함
+    window.open(a.url, "_blank", "noopener");
+  }
+  btn.textContent = old;
+}
+
+function copyCredit(a, lic, btn) {
+  const text = `"${a.title || "Untitled"}" by ${a.creator || "Unknown"} — ${lic}` +
+    (a.license_url ? ` (${a.license_url})` : "") + (a.foreign_landing_url ? `\n${a.foreign_landing_url}` : "");
+  navigator.clipboard.writeText(text).then(() => {
+    const o = btn.textContent; btn.textContent = "복사됨"; setTimeout(() => btn.textContent = o, 1500);
+  });
+}
+</script>
+</body>
+</html>
